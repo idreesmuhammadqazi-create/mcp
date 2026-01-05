@@ -1,12 +1,12 @@
-import Anthropic from '@anthropic-ai/sdk';
+import Groq from '@groq/sdk';
 import { Question } from './types.js';
 
 export class QuestionGenerator {
-  private client: Anthropic;
+  private client: Groq;
   private model: string;
 
-  constructor(apiKey: string, model: string = 'claude-3-5-sonnet-20241022') {
-    this.client = new Anthropic({ apiKey });
+  constructor(apiKey: string, model: string = 'mixtral-8x7b-32768') {
+    this.client = new Groq({ apiKey });
     this.model = model;
   }
 
@@ -14,23 +14,24 @@ export class QuestionGenerator {
     const prompt = this.buildPrompt(taskDescription);
 
     try {
-      const message = await this.client.messages.create({
+      const completion = await this.client.chat.completions.create({
         model: this.model,
-        max_tokens: 4096,
         messages: [
           {
             role: 'user',
             content: prompt
           }
-        ]
+        ],
+        max_tokens: 4096,
+        temperature: 0.3
       });
 
-      const content = message.content[0];
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from Claude');
+      const content = completion.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('No content received from Groq');
       }
 
-      return this.parseQuestions(content.text);
+      return this.parseQuestions(content);
     } catch (error) {
       console.error('Error generating questions:', error);
       throw error;
@@ -41,23 +42,25 @@ export class QuestionGenerator {
     const prompt = this.buildPrompt(taskDescription);
 
     try {
-      const stream = await this.client.messages.create({
+      const stream = await this.client.chat.completions.create({
         model: this.model,
-        max_tokens: 4096,
         messages: [
           {
             role: 'user',
             content: prompt
           }
         ],
+        max_tokens: 4096,
+        temperature: 0.3,
         stream: true
       });
 
       let accumulatedText = '';
 
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-          accumulatedText += event.delta.text;
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content;
+        if (content) {
+          accumulatedText += content;
           
           const questions = this.tryParsePartialQuestions(accumulatedText);
           for (const question of questions) {
