@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "clarifying-questions": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/studio-mcp-clarifying-questions-server/dist/index.js",
+        "mcp"
+      ],
+      "env": {
+        "ANTHROPIC_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
