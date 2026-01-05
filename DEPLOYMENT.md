@@ -374,6 +374,127 @@ docker-compose up -d
 
 ---
 
+## FastMCP Cloud Deployment
+
+This section covers deploying the Clarifying Questions MCP Server to FastMCP Cloud for easy access and hosting.
+
+### Prerequisites
+- GitHub repository with your code
+- FastMCP Cloud account
+- GROQ API key (required)
+- Optional: Custom domain and SSL certificates
+
+### Deployment Steps
+
+1. **Prepare your repository**
+   ```bash
+   # Ensure your code is committed and pushed
+   git add .
+   git commit -m "Prepare for FastMCP Cloud deployment"
+   git push origin main
+   ```
+
+2. **Create new FastMCP Cloud deployment**
+   - Visit FastMCP Cloud dashboard
+   - Click "New Deployment"
+   - Connect your GitHub repository
+   - Select the branch to deploy (typically `main`)
+
+3. **Configure build settings**
+   ```
+   Build Command: npm install && npm run build
+   Start Command: node dist/index.js http
+   ```
+
+4. **Set required environment variables**
+   ```
+   # Required - GROQ API key for AI integration
+   GROQ_API_KEY=your_groq_api_key_here
+   
+   # Required - API key for MCP authentication
+   MCP_API_KEY=your_secure_api_key_here
+   
+   # Optional - Custom server URL (will be auto-generated if not set)
+   SERVER_URL=https://your-deployment-url.fastmcp.cloud
+   ```
+
+5. **Deploy**
+   - Click "Deploy" in FastMCP Cloud dashboard
+   - Wait for build and deployment to complete
+   - Note the provided URL for your deployment
+
+### Post-Deployment Configuration
+
+Once deployed, you can test your server:
+
+```bash
+# Test health endpoint (public)
+curl https://your-deployment-url.fastmcp.cloud/health
+
+# Test API endpoint (requires authentication)
+curl https://your-deployment-url.fastmcp.cloud/api/sessions \
+  -H "Authorization: Bearer YOUR_MCP_API_KEY"
+```
+
+### Environment Variables Reference
+
+#### Required
+- `GROQ_API_KEY` - Your GROQ API key for AI integration
+- `MCP_API_KEY` - Secure API key for endpoint authentication (generate with: `openssl rand -hex 32`)
+
+#### Optional
+- `SERVER_URL` - Custom URL for your deployment (auto-generated if not provided)
+- `GROQ_MODEL` - GROQ model to use (default: `mixtral-8x7b-32768`)
+- `SESSION_TIMEOUT_MS` - Session timeout in milliseconds (default: `3600000`)
+
+### Connecting to Claude Desktop
+
+To use your FastMCP Cloud deployment with Claude Desktop, update your MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "clarifying-questions": {
+      "command": "curl",
+      "args": [
+        "-X", "POST",
+        "-H", "Authorization: Bearer YOUR_MCP_API_KEY",
+        "-H", "Content-Type: application/json",
+        "-d", '{"taskDescription": "YOUR_TASK_DESCRIPTION"}',
+        "https://your-deployment-url.fastmcp.cloud/api/generate"
+      ]
+    }
+  }
+}
+```
+
+**Note:** Direct stdio MCP integration requires running the server locally. For cloud-hosted deployments, consider using the HTTP API approach above or setting up a local proxy.
+
+### Monitoring and Logs
+
+- View deployment logs in FastMCP Cloud dashboard
+- Monitor API usage and response times
+- Check session storage (stored in `/sessions` directory)
+
+### Troubleshooting
+
+**Build failures:**
+- Ensure `npm install && npm run build` works locally
+- Check that all dependencies are properly declared in `package.json`
+- Verify Node.js version compatibility (18+ required)
+
+**Runtime errors:**
+- Verify all required environment variables are set
+- Check API key validity
+- Review deployment logs for specific error messages
+
+**Connection issues:**
+- Confirm `HOST=0.0.0.0` is set (default for FastMCP Cloud)
+- Verify port `8000` is accessible
+- Check firewall/security group settings
+
+---
+
 ## Cloud Deployment (Future)
 
 ### Railway

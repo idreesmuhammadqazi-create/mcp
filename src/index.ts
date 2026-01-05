@@ -8,8 +8,8 @@ import { HTTPServer } from './http-server.js';
 config();
 
 const API_KEY = process.env.GROQ_API_KEY;
-const PORT = parseInt(process.env.PORT || '3000', 10);
-const HOST = process.env.HOST || 'localhost';
+const PORT = parseInt(process.env.PORT || '8000', 10);
+const HOST = process.env.HOST || '0.0.0.0';
 const SERVER_URL = process.env.SERVER_URL;
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 const SSL_KEY_PATH = process.env.SSL_KEY_PATH;
