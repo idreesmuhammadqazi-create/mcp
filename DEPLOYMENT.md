@@ -176,7 +176,9 @@ cp .env.example .env
 
 Edit `.env`:
 ```env
-ANTHROPIC_API_KEY=your_key_here
+GROQ_API_KEY=your_groq_key_here
+MCP_API_KEY=your_secure_api_key  # Generate with: openssl rand -hex 32
+SERVER_URL=http://your-public-domain.com  # Optional: Your public URL
 PORT=3000
 HOST=0.0.0.0  # Listen on all interfaces
 USE_HTTPS=false  # Start with HTTP
@@ -186,6 +188,17 @@ USE_HTTPS=false  # Start with HTTP
 ```bash
 npm start http
 ```
+
+4. **Call the API with authentication**
+
+All `/api/*` endpoints require a Bearer token:
+
+```bash
+curl http://localhost:3000/api/sessions \
+  -H "Authorization: Bearer $MCP_API_KEY"
+```
+
+`GET /health` remains public (no auth required).
 
 ### HTTPS Setup
 

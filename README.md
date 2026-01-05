@@ -36,9 +36,20 @@ npm install
 cp .env.example .env
 ```
 
-4. Add your Anthropic API key to `.env`:
+4. Add your Anthropic API key and generate an MCP API key in `.env`:
 ```env
-ANTHROPIC_API_KEY=your_api_key_here
+GROQ_API_KEY=your_api_key_here
+
+# Generate a secure API key for HTTP authentication
+MCP_API_KEY=your_secure_api_key_here
+
+# Optional: Set your public server URL for deployment
+SERVER_URL=http://localhost:3000
+```
+
+**Generate a secure MCP_API_KEY:**
+```bash
+openssl rand -hex 32
 ```
 
 5. (Optional) Generate SSL certificates for HTTPS:
@@ -83,6 +94,39 @@ Or:
 node dist/index.js mcp
 ```
 
+## HTTP Authentication (Bearer Token)
+
+When running in **HTTP/HTTPS mode**, all `/api/*` endpoints are protected with an API key.
+
+- **Header**: `Authorization: Bearer <MCP_API_KEY>`
+- **Public endpoint**: `GET /health` (no auth required)
+- **Protected endpoints**: `/api/generate`, `/api/stream`, `/api/answer`, `/api/context/*`, `/api/sessions`
+
+### Configure MCP_API_KEY
+
+Add this to your `.env`:
+
+```env
+MCP_API_KEY=your_secure_api_key_here
+```
+
+Generate a secure key:
+
+```bash
+openssl rand -hex 32
+```
+
+If `MCP_API_KEY` is not set when starting the server in HTTP mode, the server will generate one and attempt to save it to `.env`.
+
+### Example (curl)
+
+```bash
+export MCP_API_KEY="your_secure_api_key_here"
+
+curl -s http://localhost:3000/api/sessions \
+  -H "Authorization: Bearer $MCP_API_KEY" | jq '.'
+```
+
 ## API Endpoints
 
 ### 1. Generate Questions (Non-streaming)
@@ -90,6 +134,7 @@ node dist/index.js mcp
 ```bash
 curl -X POST http://localhost:3000/api/generate \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_MCP_API_KEY" \
   -d '{
     "taskDescription": "make me a website that runs pseudocode"
   }'
@@ -115,7 +160,8 @@ Response:
 ### 2. Stream Questions (Server-Sent Events)
 
 ```bash
-curl -N http://localhost:3000/api/stream?taskDescription="make%20me%20a%20website"
+curl -N http://localhost:3000/api/stream?taskDescription="make%20me%20a%20website" \
+  -H "Authorization: Bearer YOUR_MCP_API_KEY"
 ```
 
 Response (SSE format):
@@ -138,6 +184,7 @@ data: {"sessionId":"session_123","questionCount":5,"message":"All questions gene
 ```bash
 curl -X POST http://localhost:3000/api/answer \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_MCP_API_KEY" \
   -d '{
     "sessionId": "session_1234567890_abc123",
     "questionId": "q1",
@@ -163,7 +210,8 @@ Response:
 ### 4. Get Task Context
 
 ```bash
-curl http://localhost:3000/api/context/session_1234567890_abc123
+curl http://localhost:3000/api/context/session_1234567890_abc123 \
+  -H "Authorization: Bearer YOUR_MCP_API_KEY"
 ```
 
 Response:
@@ -190,7 +238,8 @@ Response:
 ### 5. List All Sessions
 
 ```bash
-curl http://localhost:3000/api/sessions
+curl http://localhost:3000/api/sessions \
+  -H "Authorization: Bearer YOUR_MCP_API_KEY"
 ```
 
 Response:
@@ -285,46 +334,75 @@ When running in MCP mode, the following tools are available:
 
 ### Using SSE for Streaming
 
+**Note:** The browser `EventSource` API doesn't support custom headers. For authenticated SSE, use `fetch()` (streaming) or a Node.js EventSource client that supports headers (e.g. the `eventsource` package).
+
 ```javascript
-const eventSource = new EventSource(
-  'http://localhost:3000/api/stream?taskDescription=make%20me%20a%20website'
-);
+// Option 1: Using fetch with SSE parsing (recommended for auth)
+const API_KEY = 'your_mcp_api_key_here';
 
-let sessionId = null;
+async function streamQuestions(taskDescription) {
+  const response = await fetch(
+    `http://localhost:3000/api/stream?taskDescription=${encodeURIComponent(taskDescription)}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`
+      }
+    }
+  );
 
-eventSource.addEventListener('start', (event) => {
-  const data = JSON.parse(event.data);
-  console.log('Starting:', data.message);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let sessionId = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n');
+    
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = JSON.parse(line.slice(6));
+        if (data.sessionId) {
+          sessionId = data.sessionId;
+          console.log('Session ID:', sessionId);
+        }
+        console.log('Data:', data);
+      }
+    }
+  }
+  
+  return sessionId;
+}
+
+// Option 2: Using eventsource library (Node.js only)
+const EventSource = require('eventsource');
+const url = 'http://localhost:3000/api/stream?taskDescription=make%20me%20a%20website';
+const eventSource = new EventSource(url, {
+  headers: {
+    'Authorization': `Bearer ${API_KEY}`
+  }
 });
 
 eventSource.addEventListener('question', (event) => {
   const question = JSON.parse(event.data);
   console.log('New question:', question);
-  
-  // Display question to user and collect answer
-  displayQuestion(question);
-});
-
-eventSource.addEventListener('complete', (event) => {
-  const data = JSON.parse(event.data);
-  sessionId = data.sessionId;
-  console.log('Complete! Session ID:', sessionId);
-  eventSource.close();
-});
-
-eventSource.addEventListener('error', (event) => {
-  console.error('Error:', event);
-  eventSource.close();
 });
 ```
 
 ### Submitting Answers
 
 ```javascript
+const API_KEY = 'your_mcp_api_key_here';
+
 async function submitAnswer(sessionId, questionId, answer) {
   const response = await fetch('http://localhost:3000/api/answer', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`
+    },
     body: JSON.stringify({ sessionId, questionId, answer })
   });
   
@@ -339,7 +417,11 @@ async function submitAnswer(sessionId, questionId, answer) {
 }
 
 async function getContext(sessionId) {
-  const response = await fetch(`http://localhost:3000/api/context/${sessionId}`);
+  const response = await fetch(`http://localhost:3000/api/context/${sessionId}`, {
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`
+    }
+  });
   return await response.json();
 }
 ```
@@ -351,11 +433,18 @@ import requests
 import json
 from sseclient import SSEClient
 
+API_KEY = 'your_mcp_api_key_here'
+
+# Set up headers with authentication
+headers = {
+    'Authorization': f'Bearer {API_KEY}'
+}
+
 # Stream questions
 url = 'http://localhost:3000/api/stream'
 params = {'taskDescription': 'make me a website that runs pseudocode'}
 
-response = requests.get(url, params=params, stream=True)
+response = requests.get(url, params=params, headers=headers, stream=True)
 client = SSEClient(response)
 
 session_id = None
@@ -378,6 +467,7 @@ for event in client.events():
 # Submit an answer
 answer_response = requests.post(
     'http://localhost:3000/api/answer',
+    headers=headers,
     json={
         'sessionId': session_id,
         'questionId': 'q1',
@@ -387,7 +477,10 @@ answer_response = requests.post(
 print(answer_response.json())
 
 # Get context
-context_response = requests.get(f'http://localhost:3000/api/context/{session_id}')
+context_response = requests.get(
+    f'http://localhost:3000/api/context/{session_id}',
+    headers=headers
+)
 print(context_response.json())
 ```
 
@@ -396,9 +489,12 @@ print(context_response.json())
 ```bash
 #!/bin/bash
 
+MCP_API_KEY="your_mcp_api_key_here"
+
 # 1. Generate questions (streaming)
 echo "Generating questions..."
-RESPONSE=$(curl -N -s http://localhost:3000/api/stream\?taskDescription\="make%20a%20website" | tee /tmp/sse_output.txt)
+RESPONSE=$(curl -N -s "http://localhost:3000/api/stream?taskDescription=make%20a%20website" \
+  -H "Authorization: Bearer $MCP_API_KEY" | tee /tmp/sse_output.txt)
 
 # Extract session ID from last complete event
 SESSION_ID=$(grep "event: complete" -A 1 /tmp/sse_output.txt | grep "data:" | sed 's/.*"sessionId":"\([^"]*\)".*/\1/')
@@ -409,6 +505,7 @@ echo "Session ID: $SESSION_ID"
 echo "Answering question 1..."
 curl -X POST http://localhost:3000/api/answer \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MCP_API_KEY" \
   -d "{
     \"sessionId\": \"$SESSION_ID\",
     \"questionId\": \"q1\",
@@ -417,7 +514,8 @@ curl -X POST http://localhost:3000/api/answer \
 
 # 3. Get full context
 echo "Getting full context..."
-curl http://localhost:3000/api/context/$SESSION_ID
+curl http://localhost:3000/api/context/$SESSION_ID \
+  -H "Authorization: Bearer $MCP_API_KEY"
 ```
 
 ## Configuration
@@ -426,13 +524,15 @@ All configuration is done via environment variables in `.env`:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ANTHROPIC_API_KEY` | Your Anthropic API key (required) | - |
+| `GROQ_API_KEY` | Your Groq API key (required) | - |
+| `MCP_API_KEY` | API key for HTTP endpoint authentication (required for HTTP mode) | Auto-generated if not set |
+| `SERVER_URL` | Public server URL (for deployment) | `http://localhost:3000` |
 | `PORT` | Server port | `3000` |
 | `HOST` | Server host | `localhost` |
 | `USE_HTTPS` | Enable HTTPS | `true` |
 | `SSL_KEY_PATH` | Path to SSL private key | `./certs/key.pem` |
 | `SSL_CERT_PATH` | Path to SSL certificate | `./certs/cert.pem` |
-| `CLAUDE_MODEL` | Claude model to use | `claude-3-5-sonnet-20241022` |
+| `GROQ_MODEL` | Groq model to use | `mixtral-8x7b-32768` |
 | `SESSION_TIMEOUT_MS` | Session timeout in milliseconds | `3600000` (1 hour) |
 
 ## Question Categories

@@ -11,10 +11,18 @@ from typing import Dict, List, Optional
 
 
 class ClarifyingQuestionsClient:
-    def __init__(self, base_url: str = "http://localhost:3000"):
+    def __init__(self, base_url: str = "http://localhost:3000", api_key: Optional[str] = None):
         self.base_url = base_url
+        self.api_key = api_key
         self.session_id: Optional[str] = None
         
+    def _get_headers(self) -> Dict[str, str]:
+        """Get headers with optional authentication."""
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+    
     def check_health(self) -> bool:
         """Check if the server is healthy."""
         try:
@@ -28,6 +36,7 @@ class ClarifyingQuestionsClient:
         """Generate questions (non-streaming)."""
         response = requests.post(
             f"{self.base_url}/api/generate",
+            headers=self._get_headers(),
             json={"taskDescription": task_description}
         )
         response.raise_for_status()
@@ -47,7 +56,7 @@ class ClarifyingQuestionsClient:
         url = f"{self.base_url}/api/stream"
         params = {"taskDescription": task_description}
         
-        response = requests.get(url, params=params, stream=True)
+        response = requests.get(url, params=params, headers={"Authorization": f"Bearer {self.api_key}"} if self.api_key else None, stream=True)
         client = SSEClient(response)
         
         questions = []
@@ -80,6 +89,7 @@ class ClarifyingQuestionsClient:
         
         response = requests.post(
             f"{self.base_url}/api/answer",
+            headers=self._get_headers(),
             json={
                 "sessionId": self.session_id,
                 "questionId": question_id,
@@ -94,13 +104,21 @@ class ClarifyingQuestionsClient:
         if not self.session_id:
             raise ValueError("No active session. Generate questions first.")
         
-        response = requests.get(f"{self.base_url}/api/context/{self.session_id}")
+        headers = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        
+        response = requests.get(f"{self.base_url}/api/context/{self.session_id}", headers=headers)
         response.raise_for_status()
         return response.json()
     
     def list_sessions(self) -> Dict:
         """List all active sessions."""
-        response = requests.get(f"{self.base_url}/api/sessions")
+        headers = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        
+        response = requests.get(f"{self.base_url}/api/sessions", headers=headers)
         response.raise_for_status()
         return response.json()
 
@@ -118,7 +136,9 @@ def print_question(question: Dict, index: int):
 
 def interactive_demo():
     """Run an interactive demo."""
-    client = ClarifyingQuestionsClient()
+    import os
+    api_key = os.environ.get("MCP_API_KEY")
+    client = ClarifyingQuestionsClient(api_key=api_key)
     
     print("🤔 Clarifying Questions Client - Interactive Demo")
     print("=" * 60)
@@ -205,7 +225,9 @@ def interactive_demo():
 
 def non_interactive_demo():
     """Run a non-interactive demo with predefined answers."""
-    client = ClarifyingQuestionsClient()
+    import os
+    api_key = os.environ.get("MCP_API_KEY")
+    client = ClarifyingQuestionsClient(api_key=api_key)
     
     print("🤔 Clarifying Questions Client - Automated Demo")
     print("=" * 60)

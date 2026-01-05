@@ -242,6 +242,11 @@
             <label for="serverUrl">Server URL</label>
             <input type="text" id="serverUrl" value="http://localhost:3000" placeholder="http://localhost:3000">
         </div>
+
+        <div class="input-section">
+            <label for="apiKey">MCP API Key (Authorization: Bearer)</label>
+            <input type="text" id="apiKey" placeholder="Paste your MCP_API_KEY here">
+        </div>
         
         <div class="input-section">
             <label for="taskDescription">What would you like to build?</label>
@@ -298,10 +303,16 @@
         
         async function generateQuestions() {
             const serverUrl = document.getElementById('serverUrl').value;
+            const apiKey = document.getElementById('apiKey').value;
             const taskDescription = document.getElementById('taskDescription').value;
             
             if (!taskDescription.trim()) {
                 showStatus('Please enter a task description', 'error');
+                return;
+            }
+            
+            if (!apiKey.trim()) {
+                showStatus('Please enter your MCP API Key', 'error');
                 return;
             }
             
@@ -314,37 +325,39 @@
             
             showStatus('Generating questions...', 'info');
             
-            const eventSource = new EventSource(
-                `${serverUrl}/api/stream?taskDescription=${encodeURIComponent(taskDescription)}`
-            );
-            
-            eventSource.addEventListener('start', (event) => {
-                const data = JSON.parse(event.data);
-                showStatus(data.message, 'info');
-            });
-            
-            eventSource.addEventListener('question', (event) => {
-                const question = JSON.parse(event.data);
-                if (!questions.find(q => q.id === question.id)) {
-                    questions.push(question);
-                    renderQuestion(question);
-                    updateProgress();
+            // Note: Browser EventSource doesn't support custom headers
+            // Using the non-streaming endpoint with Authorization header instead
+            try {
+                const response = await fetch(`${serverUrl}/api/generate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({ taskDescription })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
                 }
-            });
-            
-            eventSource.addEventListener('complete', (event) => {
-                const data = JSON.parse(event.data);
+                
+                const data = await response.json();
                 sessionId = data.sessionId;
-                showStatus(`Generated ${data.questionCount} questions!`, 'success');
+                questions = data.questions;
+                
+                showStatus(`Generated ${questions.length} questions!`, 'success');
+                
+                questions.forEach(question => {
+                    renderQuestion(question);
+                });
+                
+                updateProgress();
                 document.getElementById('generateBtn').disabled = false;
-                eventSource.close();
-            });
-            
-            eventSource.addEventListener('error', (event) => {
-                showStatus('Error generating questions', 'error');
+            } catch (error) {
+                showStatus('Error generating questions: ' + error.message, 'error');
                 document.getElementById('generateBtn').disabled = false;
-                eventSource.close();
-            });
+                console.error(error);
+            }
         }
         
         function renderQuestion(question) {
@@ -391,9 +404,13 @@
             const serverUrl = document.getElementById('serverUrl').value;
             
             try {
+                const apiKey = document.getElementById('apiKey').value;
                 const response = await fetch(`${serverUrl}/api/answer`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
                     body: JSON.stringify({ sessionId, questionId, answer })
                 });
                 
@@ -411,9 +428,14 @@
         
         async function fetchContext() {
             const serverUrl = document.getElementById('serverUrl').value;
+            const apiKey = document.getElementById('apiKey').value;
             
             try {
-                const response = await fetch(`${serverUrl}/api/context/${sessionId}`);
+                const response = await fetch(`${serverUrl}/api/context/${sessionId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
                 
                 if (!response.ok) {
                     throw new Error('Failed to fetch context');
