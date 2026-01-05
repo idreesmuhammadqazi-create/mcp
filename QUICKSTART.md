@@ -17,7 +17,7 @@ npm install
 
 # 2. Configure
 cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
+# Edit .env and add your GROQ_API_KEY and MCP_API_KEY
 
 # 3. Build
 npm run build
@@ -34,8 +34,12 @@ npm start http
 Test with curl:
 
 ```bash
+# Set your API key
+export MCP_API_KEY="your_mcp_api_key_here"
+
 curl -X POST http://localhost:3000/api/generate \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MCP_API_KEY" \
   -d '{"taskDescription": "make me a website that runs pseudocode"}'
 ```
 
@@ -84,9 +88,13 @@ Or open the example client in your browser:
 ### HTTP API:
 
 ```bash
+# Set your API key
+export MCP_API_KEY="your_mcp_api_key_here"
+
 # 1. Generate questions
 SESSION_ID=$(curl -s -X POST http://localhost:3000/api/generate \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MCP_API_KEY" \
   -d '{"taskDescription": "build a chat app"}' \
   | jq -r '.sessionId')
 
@@ -95,6 +103,7 @@ echo "Session: $SESSION_ID"
 # 2. Answer a question
 curl -X POST http://localhost:3000/api/answer \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MCP_API_KEY" \
   -d "{
     \"sessionId\": \"$SESSION_ID\",
     \"questionId\": \"q1\",
@@ -102,19 +111,24 @@ curl -X POST http://localhost:3000/api/answer \
   }" | jq '.'
 
 # 3. Get complete context
-curl http://localhost:3000/api/context/$SESSION_ID | jq '.'
+curl http://localhost:3000/api/context/$SESSION_ID \
+  -H "Authorization: Bearer $MCP_API_KEY" | jq '.'
 ```
 
 ### Streaming API:
 
 ```bash
 # Stream questions in real-time
-curl -N http://localhost:3000/api/stream\?taskDescription\="build%20a%20chat%20app"
+curl -N http://localhost:3000/api/stream\?taskDescription\="build%20a%20chat%20app" \
+  -H "Authorization: Bearer $MCP_API_KEY"
 ```
 
 ### Python Client:
 
 ```bash
+# Set your API key
+export MCP_API_KEY="your_mcp_api_key_here"
+
 # Interactive mode
 python3 examples/client.py
 
@@ -125,6 +139,9 @@ python3 examples/client.py --auto
 ### Test Script:
 
 ```bash
+# Set your API key
+export MCP_API_KEY="your_mcp_api_key_here"
+
 # Run all tests
 ./examples/test.sh
 
@@ -156,10 +173,16 @@ PORT=3001
 
 ### API Key Error
 
-Make sure your `.env` file has a valid Anthropic API key:
+Make sure your `.env` file has valid API keys:
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-api03-...
+GROQ_API_KEY=your_groq_api_key
+MCP_API_KEY=your_mcp_api_key
+```
+
+Generate a secure MCP_API_KEY:
+```bash
+openssl rand -hex 32
 ```
 
 ## Next Steps

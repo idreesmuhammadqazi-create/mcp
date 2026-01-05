@@ -11,28 +11,33 @@ export class HTTPServer {
   private app: express.Application;
   private questionGenerator: QuestionGenerator;
   private sessionManager: SessionManager;
+  private mcpApiKey: string;
   private config: {
     port: number;
     host: string;
     useHttps: boolean;
     sslKeyPath?: string;
     sslCertPath?: string;
+    serverUrl?: string;
   };
 
   constructor(
     apiKey: string,
     model: string,
+    mcpApiKey: string,
     config: {
       port: number;
       host: string;
       useHttps: boolean;
       sslKeyPath?: string;
       sslCertPath?: string;
+      serverUrl?: string;
     }
   ) {
     this.app = express();
     this.questionGenerator = new QuestionGenerator(apiKey, model);
     this.sessionManager = new SessionManager();
+    this.mcpApiKey = mcpApiKey;
     this.config = config;
 
     this.setupMiddleware();
@@ -42,17 +47,40 @@ export class HTTPServer {
   private setupMiddleware(): void {
     this.app.use(cors());
     this.app.use(express.json());
-    
+
     this.app.use((req, res, next) => {
       console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
       next();
     });
   }
 
+  private createAuthMiddleware(): express.RequestHandler {
+    return (req: Request, res: Response, next) => {
+      const authHeader = req.header('authorization');
+
+      if (!authHeader) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const match = authHeader.match(/^Bearer\s+(.+)$/i);
+      const token = match?.[1];
+
+      if (!token || token !== this.mcpApiKey) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      next();
+    };
+  }
+
   private setupRoutes(): void {
     this.app.get('/health', (req, res) => {
       res.json({ status: 'healthy', timestamp: new Date().toISOString() });
     });
+
+    this.app.use('/api', this.createAuthMiddleware());
 
     this.app.post('/api/generate', async (req, res) => {
       try {
@@ -284,13 +312,18 @@ export class HTTPServer {
   }
 
   private printEndpoints(protocol: string, host: string, port: number): void {
-    const baseUrl = `${protocol}://${host}:${port}`;
+    const baseUrl = this.config.serverUrl || `${protocol}://${host}:${port}`;
     console.log('\n📡 Available endpoints:');
+    console.log(`   Server URL: ${baseUrl}`);
+    console.log(`\n🔓 Public endpoints (no auth required):`);
     console.log(`   GET  ${baseUrl}/health`);
+    console.log(`\n🔒 Protected endpoints (require Authorization: Bearer header):`);
     console.log(`   POST ${baseUrl}/api/generate`);
     console.log(`   GET  ${baseUrl}/api/stream?taskDescription=...`);
     console.log(`   POST ${baseUrl}/api/answer`);
     console.log(`   GET  ${baseUrl}/api/context/:sessionId`);
-    console.log(`   GET  ${baseUrl}/api/sessions\n`);
+    console.log(`   GET  ${baseUrl}/api/sessions`);
+    console.log(`\n💡 Example authenticated request:`);
+    console.log(`   curl -H "Authorization: Bearer YOUR_API_KEY" ${baseUrl}/api/sessions\n`);
   }
 }

@@ -8,9 +8,18 @@ set -e
 BASE_URL="${1:-http://localhost:3000}"
 TASK="make me a website that runs pseudocode"
 
+# Get MCP_API_KEY from environment variable
+if [ -z "$MCP_API_KEY" ]; then
+  echo "❌ Error: MCP_API_KEY environment variable not set"
+  echo "💡 Set it with: export MCP_API_KEY=your_api_key_here"
+  echo "💡 Or generate one with: openssl rand -hex 32"
+  exit 1
+fi
+
 echo "🧪 Testing Clarifying Questions Server"
 echo "======================================="
 echo "Base URL: $BASE_URL"
+echo "API Key: ${MCP_API_KEY:0:8}..." 
 echo ""
 
 # Colors for output
@@ -32,6 +41,7 @@ echo -e "${BLUE}Test 2: Generate Questions (Non-streaming)${NC}"
 echo "POST $BASE_URL/api/generate"
 GENERATE_RESPONSE=$(curl -s -X POST "$BASE_URL/api/generate" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MCP_API_KEY" \
   -d "{\"taskDescription\": \"$TASK\"}")
 
 SESSION_ID=$(echo "$GENERATE_RESPONSE" | jq -r '.sessionId')
@@ -56,6 +66,7 @@ for i in $(seq 1 $QUESTION_COUNT); do
   
   ANSWER_RESPONSE=$(curl -s -X POST "$BASE_URL/api/answer" \
     -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $MCP_API_KEY" \
     -d "{
       \"sessionId\": \"$SESSION_ID\",
       \"questionId\": \"$QUESTION_ID\",
@@ -72,7 +83,8 @@ echo ""
 # Test 4: Get context
 echo -e "${BLUE}Test 4: Get Task Context${NC}"
 echo "GET $BASE_URL/api/context/$SESSION_ID"
-CONTEXT=$(curl -s "$BASE_URL/api/context/$SESSION_ID")
+CONTEXT=$(curl -s "$BASE_URL/api/context/$SESSION_ID" \
+  -H "Authorization: Bearer $MCP_API_KEY")
 echo "$CONTEXT" | jq '.'
 echo -e "${GREEN}✓ Context retrieved${NC}"
 echo ""
@@ -80,7 +92,8 @@ echo ""
 # Test 5: List sessions
 echo -e "${BLUE}Test 5: List All Sessions${NC}"
 echo "GET $BASE_URL/api/sessions"
-SESSIONS=$(curl -s "$BASE_URL/api/sessions")
+SESSIONS=$(curl -s "$BASE_URL/api/sessions" \
+  -H "Authorization: Bearer $MCP_API_KEY")
 echo "$SESSIONS" | jq '.'
 echo -e "${GREEN}✓ Sessions listed${NC}"
 echo ""
@@ -94,7 +107,8 @@ ENCODED_TASK=$(echo "$TASK" | jq -sRr @uri)
 echo "Streaming from: $BASE_URL/api/stream?taskDescription=$ENCODED_TASK"
 
 # Stream for 10 seconds or until complete
-timeout 10s curl -N -s "$BASE_URL/api/stream?taskDescription=$ENCODED_TASK" | while IFS= read -r line; do
+timeout 10s curl -N -s "$BASE_URL/api/stream?taskDescription=$ENCODED_TASK" \
+  -H "Authorization: Bearer $MCP_API_KEY" | while IFS= read -r line; do
   if [[ $line == data:* ]]; then
     echo "$line"
   elif [[ $line == event:* ]]; then
@@ -112,4 +126,4 @@ echo -e "${GREEN}✅ All tests passed!${NC}"
 echo ""
 echo "Session ID for this test: $SESSION_ID"
 echo "You can retrieve the context again with:"
-echo "  curl $BASE_URL/api/context/$SESSION_ID | jq '.'"
+echo "  curl $BASE_URL/api/context/$SESSION_ID -H \"Authorization: Bearer \$MCP_API_KEY\" | jq '.'"
