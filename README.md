@@ -1,10 +1,10 @@
 # Studio MCP Clarifying Questions Server
 
-A Model Context Protocol (MCP) server that generates intelligent clarifying questions for user task requests. This server integrates with Claude to dynamically generate relevant questions about tech stack, architecture, deployment, and more.
+A Model Context Protocol (MCP) server that generates intelligent clarifying questions for user task requests. This server integrates with Groq to dynamically generate relevant questions about tech stack, architecture, deployment, and more.
 
 ## Features
 
-- 🤖 **AI-Powered Questions**: Uses Claude to generate contextually relevant questions
+- 🤖 **AI-Powered Questions**: Uses Groq models to generate contextually relevant questions
 - 🔄 **Real-time Streaming**: Supports Server-Sent Events (SSE) for streaming questions
 - 🔒 **HTTPS Support**: Optional HTTPS with self-signed certificates for development
 - 💾 **Session Management**: Persistent storage of sessions and responses
@@ -16,7 +16,7 @@ A Model Context Protocol (MCP) server that generates intelligent clarifying ques
 
 - Node.js 18+ or higher
 - npm or yarn
-- Anthropic API key (get one at https://console.anthropic.com/)
+- Groq API key (get one at https://console.groq.com/)
 
 ## Installation
 
@@ -36,7 +36,7 @@ npm install
 cp .env.example .env
 ```
 
-4. Add your Anthropic API key and generate an MCP API key in `.env`:
+4. Add your Groq API key and generate an MCP API key in `.env`:
 ```env
 GROQ_API_KEY=your_api_key_here
 
@@ -291,7 +291,7 @@ Add to your Claude Desktop configuration file:
       "command": "node",
       "args": ["/absolute/path/to/studio-mcp-clarifying-questions-server/dist/index.js", "mcp"],
       "env": {
-        "ANTHROPIC_API_KEY": "your_api_key_here"
+        "GROQ_API_KEY": "your_api_key_here"
       }
     }
   }

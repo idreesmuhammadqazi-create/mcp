@@ -5,7 +5,7 @@ Get up and running with the Clarifying Questions MCP Server in 5 minutes!
 ## Prerequisites
 
 - Node.js 18+ installed
-- An Anthropic API key
+- A Groq API key
 
 ## Installation
 
@@ -68,7 +68,7 @@ Or open the example client in your browser:
         "mcp"
       ],
       "env": {
-        "ANTHROPIC_API_KEY": "your_api_key_here"
+        "GROQ_API_KEY": "your_api_key_here"
       }
     }
   }
