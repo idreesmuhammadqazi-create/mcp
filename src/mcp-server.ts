@@ -10,11 +10,11 @@ import { SessionManager } from './session-manager.js';
 import { GenerateQuestionsRequest, AnswerQuestionRequest, GetContextRequest } from './types.js';
 
 export class MCPServer {
-  private server: Server;
+  public readonly server: Server;
   private questionGenerator: QuestionGenerator;
   private sessionManager: SessionManager;
 
-  constructor(apiKey: string, model?: string) {
+  constructor(apiKey: string, model?: string, questionGenerator?: QuestionGenerator, sessionManager?: SessionManager) {
     this.server = new Server(
       {
         name: 'clarifying-questions-server',
@@ -27,8 +27,8 @@ export class MCPServer {
       }
     );
 
-    this.questionGenerator = new QuestionGenerator(apiKey, model);
-    this.sessionManager = new SessionManager();
+    this.questionGenerator = questionGenerator || new QuestionGenerator(apiKey, model);
+    this.sessionManager = sessionManager || new SessionManager();
 
     this.setupHandlers();
   }

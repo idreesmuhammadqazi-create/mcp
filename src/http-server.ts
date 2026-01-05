@@ -3,14 +3,18 @@ import cors from 'cors';
 import https from 'https';
 import http from 'http';
 import { promises as fs } from 'fs';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { QuestionGenerator } from './question-generator.js';
 import { SessionManager } from './session-manager.js';
+import { MCPServer } from './mcp-server.js';
 import { Question } from './types.js';
 
 export class HTTPServer {
   private app: express.Application;
   private questionGenerator: QuestionGenerator;
   private sessionManager: SessionManager;
+  private mcpServer: MCPServer;
+  private mcpTransports: Map<string, SSEServerTransport> = new Map();
   private mcpApiKey: string;
   private config: {
     port: number;
@@ -37,6 +41,7 @@ export class HTTPServer {
     this.app = express();
     this.questionGenerator = new QuestionGenerator(apiKey, model);
     this.sessionManager = new SessionManager();
+    this.mcpServer = new MCPServer(apiKey, model, this.questionGenerator, this.sessionManager);
     this.mcpApiKey = mcpApiKey;
     this.config = config;
 
@@ -78,6 +83,30 @@ export class HTTPServer {
   private setupRoutes(): void {
     this.app.get('/health', (req, res) => {
       res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+    });
+
+    // MCP HTTP transport routes
+    this.app.get('/mcp', this.createAuthMiddleware(), async (req, res) => {
+      const transport = new SSEServerTransport('/mcp', res);
+      this.mcpTransports.set(transport.sessionId, transport);
+      
+      transport.onclose = () => {
+        this.mcpTransports.delete(transport.sessionId);
+      };
+
+      await this.mcpServer.server.connect(transport);
+    });
+
+    this.app.post('/mcp', this.createAuthMiddleware(), async (req, res) => {
+      const sessionId = req.query.sessionId as string;
+      const transport = this.mcpTransports.get(sessionId);
+
+      if (!transport) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      await transport.handlePostMessage(req, res, req.body);
     });
 
     this.app.use('/api', this.createAuthMiddleware());
@@ -318,6 +347,8 @@ export class HTTPServer {
     console.log(`\n🔓 Public endpoints (no auth required):`);
     console.log(`   GET  ${baseUrl}/health`);
     console.log(`\n🔒 Protected endpoints (require Authorization: Bearer header):`);
+    console.log(`   GET  ${baseUrl}/mcp (MCP SSE Connection)`);
+    console.log(`   POST ${baseUrl}/mcp?sessionId=... (MCP Message)`);
     console.log(`   POST ${baseUrl}/api/generate`);
     console.log(`   GET  ${baseUrl}/api/stream?taskDescription=...`);
     console.log(`   POST ${baseUrl}/api/answer`);

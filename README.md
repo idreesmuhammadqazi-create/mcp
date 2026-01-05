@@ -94,6 +94,16 @@ Or:
 node dist/index.js mcp
 ```
 
+### MCP HTTP Endpoint (SSE)
+
+The server provides a standard MCP HTTP transport endpoint at `/mcp`. This allows MCP clients (like `cto`) to connect via HTTP instead of stdio.
+
+- **SSE Connection**: `GET /mcp`
+- **Message Endpoint**: `POST /mcp?sessionId=...`
+- **Authentication**: Requires `Authorization: Bearer <MCP_API_KEY>`
+
+For more details on connecting via HTTP, see [MCP_HTTP_INTEGRATION.md](MCP_HTTP_INTEGRATION.md).
+
 ## HTTP Authentication (Bearer Token)
 
 When running in **HTTP/HTTPS mode**, all `/api/*` endpoints are protected with an API key.
