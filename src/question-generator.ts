@@ -1,4 +1,4 @@
-import Groq from '@groq/sdk';
+import Groq from 'groq-sdk';
 import { Question } from './types.js';
 
 export class QuestionGenerator {
